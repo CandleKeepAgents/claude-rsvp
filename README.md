@@ -2,6 +2,8 @@
 
 `rsvp` is a mod for Claude Code. It shows Claude's reply one word at a time, in one fixed position, directly below the reply. This method is RSVP (rapid serial visual presentation). Your eyes do not move across the text, so you can read faster.
 
+![rsvp demo: the reader plays a reply word by word under the reply in Claude Code](docs/demo.gif)
+
 The pivot letter of each word is red. It is always in the same column, below a marker. When you stop, a `⏸` mark shows in the reply text before the word where you stopped.
 
 ```
