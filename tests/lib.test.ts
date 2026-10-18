@@ -1,6 +1,6 @@
 import { expect, test } from 'claude-code/testing'
 
-import { delayMs, lastReply, nextSentence, pivotIndex, place, prevSentence, replyContaining, stripMarkdown, tokenize } from '../hooks/lib'
+import { delayMs, markBlock, MARK, lastReply, nextSentence, pivotIndex, place, prevSentence, replyContaining, stripMarkdown, tokenize } from '../hooks/lib'
 
 test('markdown marks go, code becomes one token', () => {
   const text = stripMarkdown('## Title\n\nSome **bold** and `code` with a [link](https://x.y).\n\n```ts\nconst a = 1\n```\n- item one')
@@ -57,4 +57,14 @@ test('the last reply joins every text after the last typed prompt', () => {
   expect(lastReply(messages)).toBe('Checking.\n\nHere is the answer.')
   expect(replyContaining(messages, 'old answer')).toBe('old answer')
   expect(replyContaining(messages, 'Checking.')).toBe('Checking.\n\nHere is the answer.')
+})
+
+test('the stop mark lands before the word in the block that holds it', () => {
+  const source = 'First **bold** block here.\n\nSecond block, more words.'
+  const words = tokenize(source)
+  const pos = words.findIndex(w => w.t === 'more')
+  expect(markBlock('Second block, more words.', source, words, pos)).toBe(`Second block, ${MARK}more words.`)
+  expect(markBlock('First **bold** block here.', source, words, pos)).toBe('First **bold** block here.')
+  const bold = words.findIndex(w => w.t === 'bold')
+  expect(markBlock('First **bold** block here.', source, words, bold)).toBe(`First **${MARK}bold** block here.`)
 })

@@ -1,16 +1,18 @@
 # rsvp: speed-read Claude's replies
 
-`rsvp` is a mod for Claude Code. It shows Claude's last reply one word at a time, in one fixed position. This method is RSVP (rapid serial visual presentation). Your eyes do not move across the text, so you can read faster.
+`rsvp` is a mod for Claude Code. It shows Claude's reply one word at a time, in one fixed position, directly below the reply. This method is RSVP (rapid serial visual presentation). Your eyes do not move across the text, so you can read faster.
 
-The pivot letter of each word is red. It is always in the same column, below a marker.
+The pivot letter of each word is red. It is always in the same column, below a marker. When you stop, a `⏸` mark shows in the reply text before the word where you stopped.
 
 ```
-────────────────┬────────────────
-              perfectly
-────────────────┴────────────────
-█████░░░░░░░░░░░░░░░░░░░░░░░░░░░░
-9/83 · 350 wpm · ▶
-p: ⏸ b: ◀ n: ▶▶ s: − f: + r: ⏮
+⏺ Rivers bend because water rarely flows in a straight line. ...
+  Once a bend forms, it tends to feed itself. The current ⏸ keeps swinging wider ...
+
+  ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┬┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+                  keeps
+  ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┴┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄
+  ██████████████████████████████████░░░░░░░░░░░░░░░░ 68/99 · 350 wpm · stopped
+  [ ▶ play ] [ ◀ sentence ] [ sentence ▶ ] [ − slower ] [ + faster ] [ ⏮ ] [ ✕ close ]
 ```
 
 ## Install
@@ -31,28 +33,28 @@ claude plugin install rsvp --marketplace CandleKeepAgents/claude-rsvp
 
 In the desktop app, `/plugin` does not operate. Click **+** next to the prompt box, then **Plugins**. Add the marketplace `CandleKeepAgents/claude-rsvp`, then add the plugin.
 
-Mods are an early-access feature of Claude Code. We tested this mod on Claude Code 2.1.302.
+Mods are an early-access feature of Claude Code. We tested this mod on Claude Code 2.1.302 in the terminal.
 
 ## Use
 
 There are two ways to start the reader:
 
-- Type `/rsvp`. The reader shows Claude's last reply, including the text between tool calls.
-- Click **▶ speed-read** below a reply. The reader shows that reply.
+- Click **▶ speed-read** below a reply.
+- Type `/rsvp`. The reader opens below Claude's last reply.
 
-The reader opens in a pane and starts to play.
+The reader opens below the reply and starts to play. Click the buttons to control it:
 
-| Key | Action |
+| Button | Action |
 |---|---|
-| `p` | Play or pause |
-| `b` | Go back one sentence |
-| `n` | Go forward one sentence |
-| `s` | Decrease the speed by 25 words per minute |
-| `f` | Increase the speed by 25 words per minute |
-| `r` | Go back to the start |
-| `Esc` | Close the pane |
+| **⏸ stop** / **▶ play** | Stops or continues the reader |
+| **◀ sentence** | Goes back one sentence |
+| **sentence ▶** | Goes forward one sentence |
+| **− slower** | Decreases the speed by 25 words per minute |
+| **+ faster** | Increases the speed by 25 words per minute |
+| **⏮** | Goes back to the start |
+| **✕ close** | Closes the reader |
 
-You can also click the buttons in the pane.
+When you stop or close the reader in the middle of a reply, the `⏸` mark shows where you stopped. The button below the reply changes to **▶ resume speed-read at 68/99** and **⏮ from the start**. Each reply keeps its own position. Only one reader plays at a time. When you start a reader, the reader that plays stops at its position.
 
 ## Settings
 
@@ -62,13 +64,14 @@ You can also click the buttons in the pane.
 | `/rsvp auto 150` | Opens the reader automatically after each reply of 150 words or more. |
 | `/rsvp auto off` | Stops the automatic reader. This is the default. |
 
-The mod keeps your settings for all sessions.
+The mod keeps the speed and the automatic setting for all sessions.
 
 ## How it works
 
 - The mod removes Markdown marks. A code block shows as one word, `[code]`.
 - A word stays on screen for one beat (60,000 ms ÷ words per minute). A long word stays 30% longer. A comma adds 50%. The end of a sentence makes the time 2.5 times longer. The end of a paragraph makes it 3 times longer.
 - The mod divides a word of more than 13 letters into parts.
+- The `⏸` mark changes only the display. The mod does not change the conversation or what Claude reads.
 
 ## Develop
 
