@@ -1,0 +1,9 @@
+{
+  "name": "rsvp",
+  "version": "0.1.0",
+  "description": "Speed-read Claude's last reply one word at a time, with play, pause, speed and sentence controls.",
+  "author": { "name": "Sahar Carmel" },
+  "repository": "https://github.com/CandleKeepAgents/claude-rsvp",
+  "license": "MIT",
+  "types": "./types/index.d.ts"
+}
