@@ -163,3 +163,38 @@ export const replyContaining = (messages: Message[], block: string): string => {
   }
   return block
 }
+
+const core = (t: string) =>
+  t.replace(/-$/, '').replace(/^[^\p{L}\p{N}]+/u, '').replace(/[^\p{L}\p{N}]+$/u, '')
+
+/** Where each word starts in the markdown it came from; -1 where it is not found. */
+export const wordOffsets = (source: string, words: Word[]): number[] => {
+  let cursor = 0
+  return words.map(w => {
+    const c = core(w.t)
+    if (!c || w.t === '[code]') return -1
+    const at = source.indexOf(c, cursor)
+    if (at < 0) return -1
+    cursor = at + c.length
+    return at
+  })
+}
+
+export const MARK = '⏸ '
+
+/** Puts the stop mark before word `pos` when that word lies in `block`. */
+export const markBlock = (block: string, source: string, words: Word[], pos: number): string => {
+  const offsets = wordOffsets(source, words)
+  // a word not found falls back to the nearest one before it
+  let i = Math.min(pos, offsets.length - 1)
+  while (i > 0 && (offsets[i] ?? -1) < 0) i -= 1
+  const offset = offsets[i] ?? -1
+  if (offset < 0) return block
+
+  const trimmed = block.trim()
+  const start = source.indexOf(trimmed)
+  if (start < 0 || offset < start || offset >= start + trimmed.length) return block
+
+  const at = block.indexOf(trimmed) + (offset - start)
+  return block.slice(0, at) + MARK + block.slice(at)
+}
