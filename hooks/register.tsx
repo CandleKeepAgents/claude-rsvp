@@ -199,7 +199,8 @@ export const register: Register = on => {
   })
 
   on('ui.render', { component: 'AssistantMessage' }, async ($, e, next) => {
-    if (e.props.isSummary || e.surface !== 'terminal') return next(e)
+    // a fixed-width word line needs a monospace face: the terminal, or the desktop's `mono`
+    if (e.props.isSummary || (e.surface !== 'terminal' && e.surface !== 'desktop')) return next(e)
 
     // the stop mark, in whichever block of its reply the word lies
     let text = e.props.text
@@ -249,15 +250,15 @@ export const register: Register = on => {
       <Box flexDirection="column">
         {own}
         <Box key={`${id}:reader`} flexDirection="column" paddingLeft={2} marginTop={1}>
-          <Text dimColor>{rule('┬')}</Text>
-          <Text bold wrap="truncate">
+          <Text mono dimColor>{rule('┬')}</Text>
+          <Text key={`${id}:word`} mono bold wrap="truncate">
             {at.pad}
             {at.left}
             <Text color="error">{at.pivot}</Text>
             {at.right}
           </Text>
-          <Text dimColor>{rule('┴')}</Text>
-          <Text wrap="truncate">
+          <Text mono dimColor>{rule('┴')}</Text>
+          <Text key={`${id}:progress`} mono wrap="truncate">
             <Text color="claude">{bar(r.pos, r.words.length, cols)}</Text>
             <Text dimColor>
               {' '}

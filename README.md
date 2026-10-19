@@ -35,7 +35,7 @@ claude plugin install rsvp --marketplace CandleKeepAgents/claude-rsvp
 
 In the desktop app, `/plugin` does not operate. Click **+** next to the prompt box, then **Plugins**. Add the marketplace `CandleKeepAgents/claude-rsvp`, then add the plugin.
 
-Mods are an early-access feature of Claude Code. We tested this mod on Claude Code 2.1.302 in the terminal.
+The mod operates in the terminal and in the Claude Code desktop app. A mod that you install from a terminal at the user scope also loads in the desktop app. Mods are an early-access feature of Claude Code. We tested this mod on Claude Code 2.1.302.
 
 ## Use
 
