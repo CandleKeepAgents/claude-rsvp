@@ -21,6 +21,9 @@ export type Reader = {
   wpm: number
 }
 
+/** A plain-words summary of one reply, from Sonnet. */
+export type Summary = { status: 'loading' | 'done' | 'error'; text: string }
+
 /** Where reading of one reply stopped. */
 export type Mark = { pos: number; total: number; source: string }
 
@@ -30,6 +33,8 @@ declare module 'claude-code' {
       readers: StateFamily<Reader>
       /** By reply id: read by every reply block to draw the stop mark. */
       marks: Record<string, Mark>
+      /** By reply id: the summary drawn under it. */
+      summaries: Record<string, Summary>
       /** The reply whose reader plays now, or ''. */
       active: string
     }

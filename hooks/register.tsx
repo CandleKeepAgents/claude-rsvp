@@ -1,7 +1,7 @@
 import { atom, memberOf, read, update } from 'claude-code'
 import type { EngineInterface, Register, Timer } from 'claude-code'
 
-import type { Mark, Reader, Word } from '../types'
+import type { Mark, Reader, Summary, Word } from '../types'
 import {
   bar,
   clampWpm,
@@ -21,12 +21,17 @@ import {
 const EMPTY: Reader = { source: '', words: [], pos: 0, isPlaying: false, isOpen: false, wpm: DEFAULT_WPM }
 const readers = atom({ plugin: 'rsvp', key: 'readers' } as const, EMPTY)
 const marks = atom({ plugin: 'rsvp', key: 'marks' } as const, {})
+const summaries = atom({ plugin: 'rsvp', key: 'summaries' } as const, {})
 const active = atom({ plugin: 'rsvp', key: 'active' } as const, '')
 
 // Module values start over on a reload: timers restart from `active` in
 // session.start, and replies fill `anchors` again as they are drawn.
 let timer: Timer | undefined
 const anchors = new Map<string, string>()
+
+/** The summary under a reply gets a reader of its own, under this id. */
+const SUMMARY = ':summary'
+const summaryReader = (id: string) => id + SUMMARY
 const tokenCache = new Map<string, Word[]>()
 
 const wordsOf = (source: string) => {
@@ -144,6 +149,56 @@ const anchorOf = (source: string) => {
   return best?.id
 }
 
+const SUMMARY_SYSTEM = `You summarize one reply that a coding agent wrote to its user. Write for a busy person in plain, everyday words, no jargon, no file paths, no ticket ids.
+Answer in exactly two short parts:
+What happened: two or three sentences.
+What you need to do: the decisions, answers or actions the reply asks of the user, as a short list; or "Nothing, it's done." if it asks nothing.`
+
+const setSummary = (
+  $: EngineInterface,
+  id: string,
+  s: Summary | undefined,
+) =>
+  update($, summaries, all => {
+    const next: Record<string, Summary> = { ...all }
+    if (s) next[id] = s
+    else delete next[id]
+    return next
+  })
+
+/** Asks Sonnet about this one reply only, never the rest of the session. */
+const summarize = async ($: EngineInterface, id: string, source: string) => {
+  if (!source.trim()) return setSummary($, id, { status: 'error', text: 'No text in this reply to summarize.' })
+  await setSummary($, id, { status: 'loading', text: '' })
+  const r = await $.model.complete({
+    model: 'sonnet',
+    system: SUMMARY_SYSTEM,
+    prompt: `The reply:\n\n${source}`,
+    maxTokens: 600,
+    effort: 'low',
+    timeoutMs: 60_000,
+  })
+  await setSummary(
+    $,
+    id,
+    r.isAnswered
+      ? { status: 'done', text: r.text.trim() }
+      : { status: 'error', text: `Could not summarize (${r.reason}).` },
+  )
+}
+
+/** Closes the summary and its reader, and forgets where that reader stopped. */
+const hideSummary = async ($: EngineInterface, id: string) => {
+  const sid = summaryReader(id)
+  await close($, sid)
+  await update($, marks, all => {
+    const next: Record<string, Mark> = { ...all }
+    delete next[sid]
+    return next
+  })
+  await setSummary($, id, undefined)
+}
+
 const openLast = async ($: EngineInterface) => {
   const source = lastReply(await $.session.messages())
   const id = source ? anchorOf(source) : undefined
@@ -204,8 +259,8 @@ export const register: Register = on => {
 
     // the stop mark, in whichever block of its reply the word lies
     let text = e.props.text
-    for (const mark of Object.values(await read($, marks))) {
-      if (mark.source.includes(text.trim().slice(0, 200))) {
+    for (const [mid, mark] of Object.entries(await read($, marks))) {
+      if (!mid.endsWith(SUMMARY) && mark.source.includes(text.trim().slice(0, 200))) {
         text = markBlock(text, mark.source, wordsOf(mark.source), mark.pos)
         break
       }
@@ -219,6 +274,83 @@ export const register: Register = on => {
     const r = await read($, memberOf(readers, { requestId: id }))
     const mark = (await read($, marks))[id]
     const source = async () => replyContaining(await $.session.messages(), e.props.text)
+    const cols = Math.max(20, Math.min((e.viewport?.columns ?? 80) - 4, 50))
+
+    const readerView = (rid: string, r: Reader, extra?: unknown) => {
+      const word = r.words[r.pos] ?? r.words[0]
+      const at = place(word?.t ?? '', cols)
+      const col = pivotColumn(cols)
+      const rule = (m: string) => '┄'.repeat(col) + m + '┄'.repeat(Math.max(0, cols - col - 1))
+      const state = r.isPlaying ? 'playing' : r.pos >= r.words.length - 1 ? 'end' : 'stopped'
+      return (
+        <Box key={`${rid}:reader`} flexDirection="column" marginTop={1}>
+          <Text mono dimColor>{rule('┬')}</Text>
+          <Text key={`${rid}:word`} mono bold wrap="truncate">
+            {at.pad}
+            {at.left}
+            <Text color="error">{at.pivot}</Text>
+            {at.right}
+          </Text>
+          <Text mono dimColor>{rule('┴')}</Text>
+          <Text key={`${rid}:progress`} mono wrap="truncate">
+            <Text color="claude">{bar(r.pos, r.words.length, cols)}</Text>
+            <Text dimColor>
+              {' '}
+              {r.pos + 1}/{r.words.length} · {r.wpm} wpm · {state}
+            </Text>
+          </Text>
+          <Box flexDirection="row" flexWrap="wrap" columnGap={1}>
+            <Button key={`${rid}:play`} label={r.isPlaying ? '⏸ stop' : '▶ play'} onPress={() => toggle($, rid)} />
+            <Button key={`${rid}:back`} label="◀ sentence" onPress={() => seek($, rid, s => prevSentence(s.words, s.pos))} />
+            <Button key={`${rid}:next`} label="sentence ▶" onPress={() => seek($, rid, s => nextSentence(s.words, s.pos))} />
+            <Button key={`${rid}:slower`} label="− slower" onPress={() => setWpm($, rid, -WPM_STEP)} />
+            <Button key={`${rid}:faster`} label="+ faster" onPress={() => setWpm($, rid, WPM_STEP)} />
+            <Button key={`${rid}:restart`} label="⏮" onPress={() => seek($, rid, () => 0)} />
+            <Button key={`${rid}:close`} label="✕ close" onPress={() => close($, rid)} />
+            {extra}
+          </Box>
+        </Box>
+      )
+    }
+
+    const summary = (await read($, summaries))[id]
+    const sid = summaryReader(id)
+    const sr = await read($, memberOf(readers, { requestId: sid }))
+    const smark = (await read($, marks))[sid]
+    const summaryBox = summary && (
+      <Box
+        key={`${id}:summary`}
+        flexDirection="column"
+        marginLeft={2}
+        marginTop={1}
+        paddingX={1}
+        borderStyle="round"
+        borderColor="claude"
+      >
+        <Text key={`${id}:summary-title`} bold color="claude">✦ Summary</Text>
+        <Text key={`${id}:summary-text`} wrap="wrap" dimColor={summary.status !== 'done'}>
+          {summary.status === 'loading' ? 'Summarizing with Sonnet…' : summary.text}
+        </Text>
+        {summary.status === 'done' && sr.isOpen && readerView(sid, sr)}
+        {summary.status !== 'loading' && !(summary.status === 'done' && sr.isOpen) && (
+          <Box key={`${id}:summary-bar`} flexDirection="row" columnGap={2}>
+            {summary.status === 'done' && (
+              <Button
+                key={`${sid}:open`}
+                plain
+                dimColor
+                label={smark ? `▶ resume speed-read at ${smark.pos + 1}/${smark.total}` : '▶ speed-read summary'}
+                onPress={() => openReader($, sid, summary.text, 'mark')}
+              />
+            )}
+            <Button key={`${id}:summary-hide`} plain dimColor label="✕ hide summary" onPress={() => hideSummary($, id)} />
+          </Box>
+        )}
+      </Box>
+    )
+    const summarizeButton = !summary && (
+      <Button key={`${id}:summarize`} plain dimColor label="✦ summarize" onPress={async () => summarize($, id, await source())} />
+    )
 
     if (!r.isOpen) {
       return (
@@ -234,47 +366,20 @@ export const register: Register = on => {
             {!mark && (
               <Button key={`${id}:open`} plain dimColor label="▶ speed-read" onPress={async () => openReader($, id, await source(), 'start')} />
             )}
+            {summarizeButton}
           </Box>
+          {summaryBox}
         </Box>
       )
     }
 
-    const cols = Math.max(20, Math.min((e.viewport?.columns ?? 80) - 4, 50))
-    const word = r.words[r.pos] ?? r.words[0]
-    const at = place(word?.t ?? '', cols)
-    const col = pivotColumn(cols)
-    const rule = (m: string) => '┄'.repeat(col) + m + '┄'.repeat(Math.max(0, cols - col - 1))
-    const state = r.isPlaying ? 'playing' : r.pos >= r.words.length - 1 ? 'end' : 'stopped'
-
     return (
       <Box flexDirection="column">
         {own}
-        <Box key={`${id}:reader`} flexDirection="column" paddingLeft={2} marginTop={1}>
-          <Text mono dimColor>{rule('┬')}</Text>
-          <Text key={`${id}:word`} mono bold wrap="truncate">
-            {at.pad}
-            {at.left}
-            <Text color="error">{at.pivot}</Text>
-            {at.right}
-          </Text>
-          <Text mono dimColor>{rule('┴')}</Text>
-          <Text key={`${id}:progress`} mono wrap="truncate">
-            <Text color="claude">{bar(r.pos, r.words.length, cols)}</Text>
-            <Text dimColor>
-              {' '}
-              {r.pos + 1}/{r.words.length} · {r.wpm} wpm · {state}
-            </Text>
-          </Text>
-          <Box flexDirection="row" flexWrap="wrap" columnGap={1}>
-            <Button key={`${id}:play`} label={r.isPlaying ? '⏸ stop' : '▶ play'} onPress={() => toggle($, id)} />
-            <Button key={`${id}:back`} label="◀ sentence" onPress={() => seek($, id, s => prevSentence(s.words, s.pos))} />
-            <Button key={`${id}:next`} label="sentence ▶" onPress={() => seek($, id, s => nextSentence(s.words, s.pos))} />
-            <Button key={`${id}:slower`} label="− slower" onPress={() => setWpm($, id, -WPM_STEP)} />
-            <Button key={`${id}:faster`} label="+ faster" onPress={() => setWpm($, id, WPM_STEP)} />
-            <Button key={`${id}:restart`} label="⏮" onPress={() => seek($, id, () => 0)} />
-            <Button key={`${id}:close`} label="✕ close" onPress={() => close($, id)} />
-          </Box>
+        <Box paddingLeft={2} flexDirection="column">
+          {readerView(id, r, summarizeButton)}
         </Box>
+        {summaryBox}
       </Box>
     )
   })
