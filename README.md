@@ -58,6 +58,17 @@ The reader opens below the reply and starts to play. Click the buttons to contro
 
 When you stop or close the reader in the middle of a reply, the `⏸` mark shows where you stopped. The button below the reply changes to **▶ resume speed-read at 68/99** and **⏮ from the start**. Each reply keeps its own position. Only one reader plays at a time. When you start a reader, the reader that plays stops at its position.
 
+## Summary
+
+Click **✦ summarize** below a reply to get a short summary of that reply. The mod sends only the text of that reply to Sonnet. Sonnet does not get the rest of the session. The summary uses your Claude plan.
+
+The summary shows in a box with a border below the reply. It has two parts:
+
+- **What happened**: two or three sentences.
+- **What you need to do**: the decisions, answers or actions that the reply asks of you, or "Nothing, it's done."
+
+Click **▶ speed-read summary** to read the summary one word at a time. The reader opens in the summary box and has the same buttons. The summary reader keeps its own position, separate from the reader of the reply. Click **✕ hide summary** to remove the summary and its reader.
+
 ## Settings
 
 | Command | Result |
